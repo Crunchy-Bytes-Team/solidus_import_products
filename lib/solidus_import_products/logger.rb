@@ -5,7 +5,7 @@ module SolidusImportProducts
     attr_accessor :logger
 
     def initialize
-      self.logger = ActiveSupport::Logger.new(Spree::ProductImport.settings[:log_to])
+      self.logger = ActiveSupport::Logger.new(SolidusImportProducts::configuration.options[:log_to])
     end
 
     def log(message, severity = :info)

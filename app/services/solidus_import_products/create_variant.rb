@@ -19,39 +19,46 @@ module SolidusImportProducts
       self.product = args[:product]
       return if product_information.nil?
 
-      load_or_initialize_variant
+      product_information[:variant_options][:taglia].split(',').map(&:strip).each do |size|
+        product_information[:variant_options][:colore].split(',').map(&:strip).each do |color|
+          v_sku = "#{product.master_sku}_#{color.upcase.strip}_#{size.upcase}"
+          load_or_initialize_variant v_sku
 
-      product_information.each do |field, value|
-        if field == :variant_options
-          value.each { |variant_field, variant_value| options(variant_field, variant_value) }
-        elsif field == :attributes
-          value.each { |attr_field, attr_value| variant.send("#{attr_field}=", attr_value) if variant.respond_to?("#{attr_field}=") }
+
+          options('Taglia', size)
+          options('Colore', color)
+
+          product_information[:attributes].each { |attr_field, attr_value| variant.send("#{attr_field}=", attr_value) if variant.respond_to?("#{attr_field}=") }
+
+
+          begin
+            next unless variant.save
+
+            product_information[:variant_images].each do |filename|
+              find_and_attach_image_to(variant, filename)
+            end
+
+            stock_items
+            logger.log("Variant of SKU #{variant.sku} successfully imported.\n", :debug)
+          rescue StandardError => e
+            message = "A variant could not be imported - here is the information we have:\n"
+            message += "#{product_information}, #{variant.errors.full_messages.join(', ')}\n"
+            message += e.message.to_s
+            logger.log(message, :error)
+            raise SolidusImportProducts::Exception::VariantError, message
+          end
+
         end
       end
 
-      begin
-        variant.save
-
-        product_information[:variant_images].each do |filename|
-          find_and_attach_image_to(variant, filename)
-        end
-
-        stock_items
-        logger.log("Variant of SKU #{variant.sku} successfully imported.\n", :debug)
-      rescue StandardError => e
-        message = "A variant could not be imported - here is the information we have:\n"
-        message += "#{product_information}, #{variant.errors.full_messages.join(', ')}\n"
-        message += e.message.to_s
-        logger.log(message, :error)
-        raise SolidusImportProducts::Exception::VariantError, message
-      end
-      variant
+      # variant
+      true
     end
 
     private
 
-    def load_or_initialize_variant
-      self.variant = Spree::Variant.find_by(sku: product_information[:attributes][:sku])
+    def load_or_initialize_variant(sku)
+      self.variant = Spree::Variant.find_by(sku: sku)
 
       if variant
         if variant.product != product
@@ -60,7 +67,7 @@ module SolidusImportProducts
         end
         product_information[:attributes].delete(:id)
       else
-        self.variant = product.variants.new(sku: product_information[:attributes][:sku], id: product_information[:attributes][:id])
+        self.variant = product.variants.new(sku: sku, id: product_information[:attributes][:id])
       end
     end
 
@@ -86,7 +93,7 @@ module SolidusImportProducts
     end
 
     def attach_image
-      Spree::ProductImport.settings[:image_fields_variants].each do |field|
+      SolidusImportProducts::configuration.options[:image_fields_variants].each do |field|
 
       end
     end

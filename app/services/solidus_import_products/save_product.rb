@@ -15,9 +15,12 @@ module SolidusImportProducts
 
       logger.log("SAVE PRODUCT: #{product.inspect}", :debug)
 
+      # Add sale prices if present
+      # product.prices << product.prices.new(amount: product.price.to_f, currency: 'EUR', country_iso: 'IT') if product.prices.empty?
+
       unless product.valid?
         msg = "A product could not be imported - here is the information we have:\n" \
-              "#{product_information}, #{product.inspect} #{product.errors.full_messages.join(', ')}"
+        "#{product_information}, #{product.inspect} #{product.errors.full_messages.join(', ')}"
         logger.log(msg, :error)
         raise SolidusImportProducts::Exception::ProductError, msg
       end
@@ -26,8 +29,17 @@ module SolidusImportProducts
 
       # Associate our new product with any taxonomies that we need to worry about
       if product_information[:attributes].key?(:taxonomies) && product_information[:attributes][:taxonomies]
-        associate_product_with_taxon(product, product_information[:attributes][:taxonomies], true)
+
+        taxons = !product_information[:attributes][:taxonomies].is_a?(Array) ?
+        [product_information[:attributes][:taxonomies]] :
+        product_information[:attributes][:taxonomies]
+
+        taxons.each do |taxon|
+          associate_product_with_taxon(product, taxon, true)
+        end
       end
+
+      #setup_product_sales(product, product_information[:attributes]) if !product_information[:attributes][:sale_price].blank? && product_information[:attributes][:sale_price].to_f > 0.0
 
       # Finally, attach any images that have been specified
       product_information[:images].each do |filename|
@@ -36,6 +48,22 @@ module SolidusImportProducts
 
       logger.log("#{product.name} successfully imported.\n")
       true
+    end
+
+    protected
+
+    def setup_product_sales(product, product_data)
+      return if product.price.nil?
+
+      sale_price = product_data[:sale_price].to_f
+      starts_at = product_data[:sale_price_start_at].blank? ? DateTime.now : product_data[:sale_price_start_at].to_date.beginning_of_day
+      ends_at = product_data[:sale_price_ends_at].blank? ? nil : product_data[:sale_price_ends_at].to_datetime.end_of_day
+      begin
+        product.put_on_sale(sale_price, { all_variants: true, start_at: starts_at, end_at: ends_at, enabled: false })
+      rescue => e
+        logger.log("Error setting product sale price: #{e}")
+        puts e
+      end
     end
   end
 end

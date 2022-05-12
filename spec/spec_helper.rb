@@ -35,7 +35,7 @@ require 'vcr_helper'
 # in spec/support/ and its subdirectories.
 Dir[File.join(File.dirname(__FILE__), 'support/**/*.rb')].each { |f| require f }
 
-Spree::ProductImport.settings[:product_image_path] = Rails.root.join('..', 'fixtures', 'images')
+SolidusImportProducts::configuration.options[:product_image_path] = Rails.root.join('..', 'fixtures', 'images')
 
 # "#{Rails.root}/../fixtures/images/"
 

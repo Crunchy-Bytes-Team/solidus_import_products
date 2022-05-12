@@ -35,7 +35,7 @@ module SolidusImportProducts
       # images, and the file is accessible to the script.
       # It is basically just a wrapper around basic File IO methods.
       def fetch_local_image(filename)
-        filename = Spree::ProductImport.settings[:product_image_path] + filename
+        filename = SolidusImportProducts::configuration.options[:product_image_path] + filename
         unless File.exist?(filename) && File.readable?(filename)
           logger.log("Image #{filename} was not found on the server, so this image was not imported.", :warn)
           return nil
@@ -74,12 +74,20 @@ module SolidusImportProducts
       def associate_product_with_taxon(product, taxon_hierarchy, putInTop)
         return if product.nil? || taxon_hierarchy.nil?
 
-        taxon_hierarchy.split(/\s*\|\s*/).each do |hierarchy|
-          hierarchy = hierarchy.split(/\s*>\s*/)
-          taxonomy = Spree::Taxonomy.where('lower(spree_taxonomies.name) = ?', hierarchy.first.downcase).first
+        # wrap all categories in a unique root taxonomy
+        taxonomy_root_name = SolidusImportProducts::configuration.options[:root_taxonomy_name]
+        taxonomy_root = nil
+        unless taxonomy_root_name.blank?
+          taxonomy_root = Spree::Taxonomy.where('lower(spree_taxonomies.name) = ?', taxonomy_root_name.downcase).first_or_create(name: taxonomy_root_name)
+        end
 
-          if taxonomy.nil? && Spree::ProductImport.settings[:create_missing_taxonomies]
-            taxonomy = Spree::Taxonomy.create(name: hierarchy.first.capitalize)
+
+        taxon_hierarchy.split(/\s*\&\s*/).each do |hierarchy|
+          hierarchy = hierarchy.split(/\s*>\s*/)
+          taxonomy = taxonomy_root || Spree::Taxonomy.where('lower(spree_taxonomies.name) = ?', taxonomy_name).first
+
+          if taxonomy.nil? && SolidusImportProducts::configuration.options[:create_missing_taxonomies]
+            taxonomy = Spree::Taxonomy.create(name: taxonomy_name)
           end
 
           unless taxonomy.valid?
@@ -90,7 +98,8 @@ module SolidusImportProducts
 
           last_taxon = taxonomy.root
 
-          hierarchy.shift
+          hierarchy.shift if taxonomy_root_name.blank?
+
           hierarchy.each do |taxon|
             last_taxon = last_taxon.children.find_or_create_by(name: taxon, taxonomy_id: taxonomy.id)
             next if last_taxon.valid?

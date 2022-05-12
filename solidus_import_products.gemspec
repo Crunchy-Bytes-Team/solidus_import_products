@@ -14,6 +14,8 @@ Gem::Specification.new do |s|
   s.requirements << 'none'
 
   s.add_dependency 'deface'
+  s.add_dependency 'roo'
+  s.add_dependency 'aws-sdk-s3', '~> 1'
   s.add_dependency 'solidus_auth_devise'
   s.add_dependency 'solidus_core', '>= 2.0'
   s.add_dependency 'solidus_support'

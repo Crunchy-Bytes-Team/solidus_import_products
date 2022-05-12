@@ -18,7 +18,7 @@ module SolidusImportProducts
         encoding_csv = (options[:encoding_csv] if options) || DEFAULT_CSV_ENCODING
         separator_char = (options[:separator_char] if options) || DEFAULT_CSV_SEPARATOR
         csv_string = open(data_file, "r:#{encoding_csv}").read.encode('utf-8')
-        self.rows = CSV.parse(csv_string, col_sep: separator_char)
+        self.rows = CSV.parse(csv_string, col_sep: separator_char, quote_char: '"', force_quotes: true)
         extract_column_mappings
       end
 

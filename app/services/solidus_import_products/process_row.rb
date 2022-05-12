@@ -1,15 +1,15 @@
 module SolidusImportProducts
   class ProcessRow
-    attr_accessor :parser, :product_imports, :logger, :row, :col, :product_information, :variant_field, :skus_of_products_before_import
+    attr_accessor :parser, :product_imports, :logger, :row, :col, :product_information, :master_field, :skus_of_products_before_import
 
-    VARIANT_FIELD_NAME = :name
+    MASTER_FIELD_NAME = :master_sku
 
     def initialize(args = { parser: nil, product_imports: nil, row: nil, col: nil, skus_of_products_before_import: nil })
       self.parser = args[:parser]
       self.product_imports = args[:product_imports]
       self.row = args[:row]
       self.col = args[:col]
-      self.variant_field = VARIANT_FIELD_NAME
+      self.master_field = MASTER_FIELD_NAME
       self.skus_of_products_before_import = args[:skus_of_products_before_import]
       self.logger = SolidusImportProducts::Logger.instance
       self.product_information = { variant_options: {}, images: [], variant_images: [], product_properties: {}, attributes: {} }
@@ -21,11 +21,15 @@ module SolidusImportProducts
 
     def call
       extract_product_information
+      # extract_categories
       product_information_default_values
-      logger.log(product_information.to_s, :debug)
+      extract_product_images
 
-      variant_column = col[variant_field]
-      product = Spree::Product.find_by(variant_field.to_s => row[variant_column])
+      # extract_variant_images
+      # logger.log(product_information.to_s, :debug)
+
+      variant_column = col[master_field]
+      product = Spree::Product.find_by(master_field.to_s => row[variant_column])
 
       unless product
         if skus_of_products_before_import.include?(product_information[:attributes][:sku])
@@ -48,6 +52,34 @@ module SolidusImportProducts
       properties_hash = SolidusImportProducts::UpdateProduct.call(product: product, product_information: product_information)
       SolidusImportProducts::SaveProduct.call(product: product, product_information: product_information)
       SolidusImportProducts::SaveProperties.call(product: product, properties_hash: properties_hash)
+    end
+
+    def extract_categories
+      if !product_information[:attributes][:taxonomies] && product_information[:attributes][:category]
+        if product_information[:attributes][:subcategories]
+          product_information[:attributes][:taxonomies] = product_information[:attributes][:subcategories].split(',').map {|subcat| "#{product_information[:attributes][:category]} > #{subcat}"}
+        else
+          product_information[:attributes][:taxonomies] = product_information[:attributes][:category]
+        end
+      end
+    end
+
+    def extract_product_images
+      return if product_information[:images].any?
+
+      images_path = SolidusImportProducts::configuration.options[:product_image_path] + "/#{product_imports.id}/images/#{product_information[:attributes][:sku]}/**/*"
+      Dir[images_path].keep_if {|k| !File.directory?(k) }.each do |path|
+        product_information[:images].push(path.gsub(SolidusImportProducts::configuration.options[:product_image_path], ''))
+      end
+    end
+
+    def extract_variant_images
+      return if product_information[:variant_images].any?
+
+      images_path = SolidusImportProducts::configuration.options[:product_image_path] + "/#{product_imports.id}/images/#{product_information[:attributes][:sku]}/**/*"
+      Dir[images_path].keep_if {|k| !File.directory?(k) }.each do |path|
+        product_information[:variant_images].push(path.gsub(SolidusImportProducts::configuration.options[:product_image_path], ''))
+      end
     end
 
     def extract_product_information

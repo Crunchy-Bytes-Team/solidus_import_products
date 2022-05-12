@@ -13,6 +13,10 @@ module Spree
 
     belongs_to :user, class_name: 'Spree::User', foreign_key: 'created_by', inverse_of: :product_imports
 
+    validates_presence_of :bundle_file_url,
+                          allow_blank: false,
+                          length: { maximum: 255 }
+
     validates_attachment_presence :data_file
     # Content type of csv vary in different browsers.
     validates_attachment :data_file, presence: true, content_type: { content_type: ['text/csv', 'text/plain', 'text/comma-separated-values', 'application/octet-stream', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/csv'] }
@@ -26,11 +30,17 @@ module Spree
       event :start do
         transition to: :started, from: :created
       end
+      event :download do
+        transition to: :downloaded, from: :started
+      end
+      event :process do
+        transition to: :processing, from: %i[started downloaded]
+      end
       event :complete do
-        transition to: :completed, from: :started
+        transition to: :completed, from: %i[started downloaded processing]
       end
       event :failure do
-        transition to: :failed, from: %i[created started]
+        transition to: :failed, from: %i[created started processing]
       end
 
       before_transition to: [:failed] do |import|
