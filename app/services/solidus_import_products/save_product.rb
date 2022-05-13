@@ -60,7 +60,7 @@ module SolidusImportProducts
       starts_at = product_data[:sale_price_start_at].blank? ? DateTime.now : product_data[:sale_price_start_at].to_date.beginning_of_day
       ends_at = product_data[:sale_price_ends_at].blank? ? nil : product_data[:sale_price_ends_at].to_datetime.end_of_day
       begin
-        product.put_on_sale(sale_price, {calculator_type: ::Spree::Calculator::FixedAmountSalePriceCalculator.new, all_variants: true, start_at: starts_at, end_at: ends_at, enabled: false })
+        product.put_on_sale(sale_price, {all_variants: true, start_at: starts_at, end_at: ends_at, enabled: true })
       rescue => e
         logger.log("Error setting product sale price: #{e}")
         puts e
